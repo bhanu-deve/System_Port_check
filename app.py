@@ -1,6 +1,8 @@
 from flask import Flask, jsonify, render_template_string, url_for
 import subprocess
 import re
+import platform
+import psutil
 
 app = Flask(__name__)
 
@@ -37,6 +39,25 @@ def parse_tasklist(tasklist_output):
             pid = parts[1]
             pid_name_map[pid] = name
     return pid_name_map
+
+def get_system_info():
+    # System name
+    system_name = platform.node()
+
+    # RAM total and used (in GB)
+    mem = psutil.virtual_memory()
+    ram_total_gb = mem.total / (1024 ** 3)
+    ram_used_gb = mem.used / (1024 ** 3)
+    ram_info = f"{ram_used_gb:.2f} GB / {ram_total_gb:.2f} GB"
+
+    # CPU usage percentage (1 second interval)
+    cpu_usage = psutil.cpu_percent(interval=1)
+
+    return {
+        "system_name": system_name,
+        "ram_info": ram_info,
+        "cpu_usage": cpu_usage
+    }
 
 @app.route("/api/ports")
 def ports_api():
@@ -76,6 +97,7 @@ def ports_api():
 # Main dashboard page
 @app.route("/")
 def index():
+    sys_info = get_system_info()
     return render_template_string('''
 <!DOCTYPE html>
 <html lang="en">
@@ -152,6 +174,12 @@ def index():
     height: 200px;
     margin-bottom: 0.5rem;
   }
+  /* System info */
+  #systemInfo {
+    text-align: center;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+  }
 </style>
 </head>
 <body>
@@ -160,6 +188,13 @@ def index():
 </div>
 
 <h1>Port & Software Dashboard (Real-Time)</h1>
+
+<!-- System live info below h1 -->
+<div id="systemInfo">
+    <strong>System Name:</strong> {{ sys_info.system_name }} |
+    <strong>RAM Used / Total:</strong> {{ sys_info.ram_info }} |
+    <strong>CPU Usage:</strong> {{ sys_info.cpu_usage }}%
+</div>
 
 <label for="filterPort">Find port number: </label>
 <input type="number" id="filterPort" min="0" max="65535" placeholder="Enter port to filter..." />
@@ -270,7 +305,7 @@ setInterval(init, 30000);
 </script>
 </body>
 </html>
-    ''')
+    ''', sys_info=sys_info)
 
 if __name__ == '__main__':
     app.run(debug=True)
